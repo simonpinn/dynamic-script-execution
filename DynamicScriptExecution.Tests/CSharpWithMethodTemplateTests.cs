@@ -176,5 +176,43 @@ date = date.AddDays(10) // missing ;
             Assert.AreEqual(2, result.Errors.FirstOrDefault().FromLine);
             Assert.AreEqual(2, result.Errors.FirstOrDefault().ToLine);
         }
+        
+        
+        [TestCase(1, false, 100)]
+        [TestCase(1, true, 150)]
+        [TestCase(2, false, 250)]
+        [TestCase(2, true, 100)]
+        [TestCase(3232, true, 0)]
+        [TestCase(3232, false, 0)]
+        [TestCase(21312, true, 0)]
+        [TestCase(21312, false, 0)]
+        public void PatternSwitchStatementWithInputParamAndOutParamValue(int productId, bool isCarport, int expectedValue)
+        {
+            // setup
+            var controller = new CSharpDynamicScriptController(new CSharpMethodBodyCodeTemplate());
+            controller.Evaluate(new DotNetDynamicScriptParameter($@"
+returnValue = (productId, isCarport) switch {{
+  (1, false) => 100,
+  (1, true) => 150,
+  (2, false) => 250,
+  (2, true) => 100,
+  (_, _) => 0,
+}};
+", parameters: new List<ParameterDefinition>()
+            {
+                new ("productId", ParameterDefinitionType.Int, ParameterDirection.Input),
+                new ("isCarport", ParameterDefinitionType.Bool, ParameterDirection.Input),
+                new ("returnValue", ParameterDefinitionType.Int, ParameterDirection.Output)
+            }));
+
+            // act
+            var executionResult = controller.Execute(methodArgs: new List<ParameterArgument>() {
+                new ("productId", productId),
+                new ("isCarport", isCarport)
+            });
+
+            // assert
+            Assert.AreEqual(executionResult["returnValue"], expectedValue);
+        }
     }
 }

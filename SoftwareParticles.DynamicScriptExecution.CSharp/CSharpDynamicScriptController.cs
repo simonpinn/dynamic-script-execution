@@ -20,7 +20,7 @@ namespace SoftwareParticles.DynamicScriptExecution.CSharp
 
         protected override SyntaxTree GetSyntaxTree(string code)
         {
-            var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp5);
+            var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp9);
             return CSharpSyntaxTree.ParseText(code, options);
         }
 
