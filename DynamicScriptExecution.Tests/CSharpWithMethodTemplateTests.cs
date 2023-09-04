@@ -214,5 +214,37 @@ returnValue = (productId, isCarport) switch {{
             // assert
             Assert.AreEqual(executionResult["returnValue"], expectedValue);
         }
+        
+        [TestCase(1, false, 100)]
+        public void PatternSwitchStatementWithInputParamAndOutParamValueMissingCase(int productId, bool isCarport, int expectedValue)
+        {
+            // setup
+            var controller = new CSharpDynamicScriptController(new CSharpMethodBodyCodeTemplate());
+            var evalResult = controller.Evaluate(new DotNetDynamicScriptParameter($@"
+returnValue = (productId, isCarport) switch {{
+  (1, false) => 100,
+  (1, true) => 150,
+  (2, false) => 250,
+  (2, true) => 100,  
+}};
+", parameters: new List<ParameterDefinition>()
+            {
+                new ("productId", ParameterDefinitionType.Int, ParameterDirection.Input),
+                new ("isCarport", ParameterDefinitionType.Bool, ParameterDirection.Input),
+                new ("returnValue", ParameterDefinitionType.Int, ParameterDirection.Output)
+            }));
+
+            // act
+            var executionResult = controller.Execute(methodArgs: new List<ParameterArgument>() {
+                new ("productId", productId),
+                new ("isCarport", isCarport)
+            });
+
+            // assert
+            Assert.AreEqual(executionResult["returnValue"], expectedValue);
+            var warnings = evalResult.Warnings.ToList();
+            Assert.AreEqual(1,warnings.Count);
+            Assert.AreEqual( "The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern '(0, _)' is not covered.",warnings.First().ErrorMessage);
+        }
     }
 }

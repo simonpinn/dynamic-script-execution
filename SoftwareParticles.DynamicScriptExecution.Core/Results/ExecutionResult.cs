@@ -11,6 +11,7 @@ namespace SoftwareParticles.DynamicScriptExecution.Core
         public List<ExecutionResultEntry> Results { get; }
 
         public List<DynamicScriptExecutionError> Errors { get; }
+        public List<DynamicScriptExecutionError> Warnings { get; set; }
 
         public bool Success => !Errors.Any();
 

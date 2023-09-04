@@ -37,14 +37,18 @@ namespace SoftwareParticles.DynamicScriptExecution.DotNet
 
             var syntaxTree = GetSyntaxTree(code);
 
-            var rootPath = Path.GetDirectoryName(typeof(object).Assembly.Location) + Path.DirectorySeparatorChar;
+            var compilerRootPath = Path.GetDirectoryName(typeof(object).Assembly.Location) + Path.DirectorySeparatorChar;
 
+            // NOTE - this needs to be the path to netstandard2.0 package location,
+            // TODO: find a better way to ref
+            var referenceRootPath = @"C:\Users\simon.SPINN\.nuget\packages\netstandard.library\2.0.3\build\netstandard2.0\ref\";
+            
             var compilation = GetCompilationForAssembly(p.AssemblyName)
                 .WithOptions(GetOptions())
                 .AddSyntaxTrees(syntaxTree);
-
-            compilation = AddDefaultReferences(rootPath, compilation);
-            compilation = AddReferences(rootPath, compilation);
+            
+            compilation = AddDefaultReferences(referenceRootPath, compilation);
+            compilation = AddReferences(compilerRootPath, compilation);
 
             foreach (var reference in p.References)
             {
@@ -53,29 +57,53 @@ namespace SoftwareParticles.DynamicScriptExecution.DotNet
 
             var diagnostics = compilation.GetDiagnostics();
 
+            var returnValue = EvaluationResult.Ok(); 
+            
             var errors = diagnostics.Where(x => x.Severity == DiagnosticSeverity.Error);
             if (errors.Any())
             {
                 int lineOffset = _codeTemplate.GetCodeLineOffset(code);
-                return EvaluationResult.WithErrors(errors.Select(x => GetDynamicScriptError(x, lineOffset)));
+                returnValue = EvaluationResult.WithErrors(errors.Select(x => GetDynamicScriptError(x, lineOffset)));
+            }
+            
+            var warnings = diagnostics.Where(x => x.Severity == DiagnosticSeverity.Warning);
+            if (warnings.Any())
+            {
+                int lineOffset = _codeTemplate.GetCodeLineOffset(code);
+                returnValue.Warnings = warnings.Select(x => GetDynamicScriptError(x, lineOffset));
             }
 
+            if (!returnValue.Success)
+            {
+                return returnValue;
+            }
+
+            //using (var fs = File.OpenWrite("GeneratedAssembly.dll"))
+            
             using (var ms = new MemoryStream())
             {
-                string resourcesFileLocation = Path.Combine(Path.GetDirectoryName(this.GetType().Assembly.Location), "resources.resx");
+                string resourcesFileLocation = Path.Combine(Path.GetDirectoryName(this.GetType().Assembly.Location),
+                    "resources.resx");
 
                 var result = compilation.Emit(ms, pdbStream: null);
 
                 if (!result.Success)
                 {
                     int lineOffset = _codeTemplate.GetCodeLineOffset(code);
-                    return EvaluationResult.WithErrors(result.Diagnostics.Where(x => x.Severity == DiagnosticSeverity.Error).Select(x => GetDynamicScriptError(x, lineOffset)));
+                    return EvaluationResult.WithErrors(result.Diagnostics
+                        .Where(x => x.Severity == DiagnosticSeverity.Error)
+                        .Select(x => GetDynamicScriptError(x, lineOffset)));
                 }
+
                 var assemblyBytes = ms.ToArray();
                 _assembly = Assembly.Load(assemblyBytes);
+
+                // TODO: Output the assembly for usage
+                // ms.Position = 0;
+                // ms.CopyTo(fs);
             }
 
-            return EvaluationResult.Ok();
+            return returnValue;
         }
 
         private DynamicScriptCompilationError GetDynamicScriptError(Diagnostic d, int lineOffset)
@@ -140,13 +168,15 @@ namespace SoftwareParticles.DynamicScriptExecution.DotNet
 
         private Compilation AddDefaultReferences(string rootPath, Compilation compilation)
         {
-            return compilation.AddReferences(MetadataReference.CreateFromFile(typeof(int).Assembly.Location))
-                .AddReferences(MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location))
-                .AddReferences(MetadataReference.CreateFromFile(typeof(DataTable).Assembly.Location))
-                .AddReferences(MetadataReference.CreateFromFile(typeof(Object).Assembly.Location))
-                .AddReferences(MetadataReference.CreateFromFile(typeof(File).Assembly.Location))
-                .AddReferences(MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location))
-                .AddReferences(MetadataReference.CreateFromFile(typeof(AssemblyTitleAttribute).Assembly.Location))
+            return compilation
+                // TODO: These will reference non-netstandard assemblies, fine if running generated code in same env
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(int).Assembly.Location))
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location))
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(DataTable).Assembly.Location))
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(Object).Assembly.Location))
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(File).Assembly.Location))
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location))
+                // .AddReferences(MetadataReference.CreateFromFile(typeof(AssemblyTitleAttribute).Assembly.Location))
                 .AddReferences(MetadataReference.CreateFromFile(Path.Combine(rootPath, "System.dll")))
                 .AddReferences(MetadataReference.CreateFromFile(Path.Combine(rootPath, "netstandard.dll")))
                 .AddReferences(MetadataReference.CreateFromFile(Path.Combine(rootPath, "System.Runtime.dll")));
